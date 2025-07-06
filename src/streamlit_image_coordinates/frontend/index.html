@@ -10,8 +10,18 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <div id="image-container">
-      <img id="image" draggable="false"/>
+    <div class="image-container">
+      <div class="image-wrapper">
+        <img id="image" class="zoomable-image" draggable="false"/>
+        <div class="zoom-controls">
+          <button class="zoom-btn" id="zoomInBtn">Zoom In</button>
+          <button class="zoom-btn" id="zoomOutBtn">Zoom Out</button>
+          <button class="zoom-btn" id="resetZoomBtn">Reset</button>
+        </div>
+        <div class="coordinates-display" id="coordinatesDisplay">
+          Click on image to see coordinates. Right-click and drag to pan.
+        </div>
+      </div>
     </div>
   </body>
 </html>

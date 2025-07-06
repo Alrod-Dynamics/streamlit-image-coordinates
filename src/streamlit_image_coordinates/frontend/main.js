@@ -1,90 +1,247 @@
-// The `Streamlit` object exists because our html file includes
-// `streamlit-component-lib.js`.
-// If you get an error about "Streamlit" not being defined, that
-// means you're missing that file.
-
+// main.js
 function sendValue(value) {
   Streamlit.setComponentValue(value)
 }
 
-/**
- * The component's render function. This will be called immediately after
- * the component is initially loaded, and then again every time the
- * component gets new data from Python.
- */
+document.addEventListener("DOMContentLoaded", () => {
+  const image = document.getElementById("image")
+  const coordsDisplay = document.getElementById("coordinatesDisplay")
+  const zoomInBtn = document.getElementById("zoomInBtn")
+  const zoomOutBtn = document.getElementById("zoomOutBtn")
+  const resetZoomBtn = document.getElementById("resetZoomBtn")
 
-function clickListener(event) {
-  const {offsetX, offsetY} = event;
-  const img = document.getElementById("image");
-  const unixTime = Date.now();
+  let currentScale = 1
+  let translateX = 0
+  let translateY = 0
+  let isDragging = false
+  let dragStartX = 0, dragStartY = 0
+  let dragStartTX = 0, dragStartTY = 0
 
-  sendValue({x: offsetX, y: offsetY, width: img.width, height: img.height, unix_time: unixTime});
-}
+  // --- Utility to clamp pan so no white bars ever show ---
+  // function clampPan() {
+  //   const wrapper = document.querySelector(".image-wrapper").getBoundingClientRect()
 
-function mouseDownListener(downEvent) {
-  const [x1, y1] = [downEvent.offsetX, downEvent.offsetY];
+  //   // total overflow in each axis:
+  //   const overflowX = image.naturalWidth - wrapper.width  / currentScale
+  //   const overflowY = image.naturalHeight - wrapper.height / currentScale
 
-  window.addEventListener("mouseup", (upEvent) => {
-    const [x2, y2] = [upEvent.clientX, upEvent.clientY];
-    const img = document.getElementById("image");
-    const rect = img.getBoundingClientRect();
-    const unixTime = Date.now();
+  //   // clamp to [–a/2, +a/2]:
+  //   const minX = -overflowX / 2, maxX = +overflowX / 2
+  //   const minY = -overflowY / 2, maxY = +overflowY / 2
 
-    sendValue({x1: x1, y1: y1, x2: x2 - rect.left, y2: y2 - rect.top,
-    width: img.width, height: img.height, unix_time: unixTime});
-
-  }, {once: true})
-}
-
-function onRender(event) {
-  let {src, height, width, use_column_width, click_and_drag} = event.detail.args;
-
-  const img = document.getElementById("image");
-
-  if (img.src !== src) {
-    img.src = src;
+  //   translateX = Math.min(Math.max(translateX, minX), maxX)
+  //   translateY = Math.min(Math.max(translateY, minY), maxY)
+  // }
+  function clampPan() {
+    const wrapper = document.querySelector(".image-wrapper").getBoundingClientRect()
+    const minX = wrapper.width / currentScale - image.naturalWidth
+    const minY = wrapper.height / currentScale - image.naturalHeight
+    console.log(`clampPan: minX=${minX}, minY=${minY}, currentScale=${currentScale}`)
+    translateX = Math.min(Math.max(translateX, minX), 0)
+    translateY = Math.min(Math.max(translateY, minY), 0)
   }
 
-  function resizeImage() {
-    img.classList.remove("auto", "fullWidth");
-    img.removeAttribute("width");
-    img.removeAttribute("height");
+  // function updateTransform() {
+  //   clampPan()
+  //   image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`
+  // }
+  let prevScale = 1;
 
-    if (use_column_width === "always" || use_column_width === true) {
-      img.classList.add("fullWidth");
-    } else if (use_column_width === "auto") {
-      img.classList.add("auto");
-    } else {
-      if (!width && !height) {
-        width = img.naturalWidth;
-        height = img.naturalHeight;
-      } else if (!height) {
-        height = width * img.naturalHeight / img.naturalWidth;
-      } else if (!width) {
-        width = height * img.naturalWidth / img.naturalHeight;
-      }
-
-      img.width = width;
-      img.height = height;
+  function updateTransform() {
+    // Only clamp when zooming out (or equal) or during a pan
+    if (currentScale <= prevScale) {
+      clampPan();
     }
-
-    Streamlit.setFrameHeight(img.height);
+    image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+    prevScale = currentScale;
+    updateClickPoint();
   }
 
-  img.onload = resizeImage;
-  window.addEventListener("resize", resizeImage);
+  // --- Zoom helpers ---
+  const ZOOM_STEP = 1.03  // 5% per notch
+  const MAX_SCALE = 8  // max zoom level
+  // function getMinScale() {
+  //   const wrap = document.querySelector(".image-wrapper").getBoundingClientRect()
+  //   return Math.max( wrap.width  / image.naturalWidth,
+  //                    wrap.height / image.naturalHeight,
+  //                    0.1 )  // never go to zero
+  // }
 
-  // When image is clicked, send the coordinates and unix timestamp to Python, through sendValue
-  if (click_and_drag) {
-    img.onclick = null;
-    img.onmousedown = mouseDownListener;
-  } else {
-    img.onmousedown = null;
-    img.onclick = clickListener;
+  function getMinScale() {
+    const wrap = document.querySelector(".image-wrapper").getBoundingClientRect()
+    // compute the scale that would make the image JUST fill the container
+    const fitScale = Math.max(
+      wrap.width / image.naturalWidth,
+      wrap.height / image.naturalHeight
+    )
+    // but allow zoom-out down to 50% of the container
+    return fitScale * 0.5
   }
-}
 
-// Render the component whenever python send a "render event"
-Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender)
-// Tell Streamlit that the component is ready to receive events
-Streamlit.setComponentReady()
+  // function zoomAt(mx, my, newScale) {
+  //   const wrap = document.querySelector(".image-wrapper").getBoundingClientRect()
+  //   // pointer relative to top-left of wrapper
+  //   const relX = mx - wrap.left
+  //   const relY = my - wrap.top
+
+  //   // compute new translate so point under mouse stays fixed
+  //   const invOld = 1 / currentScale
+  //   const invNew = 1 / newScale
+  //   translateX += relX * (invNew - invOld)
+  //   translateY += relY * (invNew - invOld)
+
+  //   currentScale = newScale
+  //   updateTransform()
+  // }
+
+  function zoomAt(mouseX, mouseY, newScale) {
+    const wrap = document.querySelector(".image-wrapper").getBoundingClientRect();
+    const localX = mouseX - wrap.left;
+    const localY = mouseY - wrap.top;
+
+    const ratio = newScale / currentScale;
+    // keep the point under cursor fixed:
+    translateX = localX - ratio * (localX - translateX);
+    translateY = localY - ratio * (localY - translateY);
+
+    currentScale = newScale;
+    updateTransform();
+  }
+
+  function zoomIn(mx, my) {
+    // compute desired new scale, but cap it
+    const target = Math.min(currentScale * ZOOM_STEP, MAX_SCALE)
+    zoomAt(mx, my, target)
+  }
+  function zoomOut(mx, my) {
+    const target = currentScale / ZOOM_STEP
+    zoomAt(mx, my, Math.max(target, getMinScale()))
+  }
+  function resetZoom() {
+    currentScale = getMinScale()
+    translateX = 0
+    translateY = 0
+    updateTransform()
+  }
+
+  // --- Mouse & wheel events ---
+  let lastMX = 0, lastMY = 0
+  image.addEventListener("mousemove", e => {
+    lastMX = e.clientX; lastMY = e.clientY
+    if (isDragging) {
+      translateX = dragStartTX + (e.clientX - dragStartX)
+      translateY = dragStartTY + (e.clientY - dragStartY)
+      updateTransform()
+      coordsDisplay.textContent = `Dragging… | ${currentScale.toFixed(2)}×`
+      return
+    }
+    // otherwise show live coords
+    const rect = image.getBoundingClientRect()
+    const ix = e.clientX - rect.left
+    const iy = e.clientY - rect.top
+    const w = rect.width
+    const h = rect.height
+    const rawX = Math.round(ix * image.naturalWidth / w)
+    const rawY = Math.round(iy * image.naturalHeight / h)
+    if (rawX >= 0 && rawX < image.naturalWidth && rawY >= 0 && rawY < image.naturalHeight) {
+      coordsDisplay.textContent = `Mouse: (${rawX}, ${rawY}) | ${currentScale.toFixed(2)}x`
+    }
+  })
+
+  image.addEventListener("mousedown", e => {
+    if (e.button === 2) {
+      e.preventDefault()
+      isDragging = true
+      dragStartX = e.clientX; dragStartY = e.clientY
+      dragStartTX = translateX; dragStartTY = translateY
+      image.classList.add("dragging")
+    }
+    updateClickPoint();
+  })
+  image.addEventListener("mouseup", () => { isDragging = false; image.classList.remove("dragging") })
+  image.addEventListener("mouseleave", () => { isDragging = false; image.classList.remove("dragging") })
+  image.addEventListener("contextmenu", e => e.preventDefault())
+
+  let clickPoint = null;
+
+  // 1) Replace your old updateClickPoint() with this:
+  function updateClickPoint() {
+    if (!clickPoint) return;
+
+    // grab the raw pixel we stored
+    const rawX = parseFloat(clickPoint.dataset.rawX);
+    const rawY = parseFloat(clickPoint.dataset.rawY);
+
+    // get the actual on-screen position & size of the <img>
+    const imgRect = image.getBoundingClientRect();
+    const wrapperRect = image.parentElement.getBoundingClientRect();
+
+    // compute fractional position within the natural image
+    const fx = rawX / image.naturalWidth;
+    const fy = rawY / image.naturalHeight;
+
+    // map that fraction onto the displayed size
+    const dispX = (imgRect.left - wrapperRect.left) + fx * imgRect.width;
+    const dispY = (imgRect.top - wrapperRect.top) + fy * imgRect.height;
+
+    // set the dot there
+    clickPoint.style.left = `${dispX}px`;
+    clickPoint.style.top = `${dispY}px`;
+  }
+
+  image.addEventListener("click", e => {
+    if (e.button !== 0) return;
+
+    // 1) compute raw image pixel
+    const rect = image.getBoundingClientRect();
+    const ix = e.clientX - rect.left;
+    const iy = e.clientY - rect.top;
+    const rawX = Math.round(ix * image.naturalWidth / rect.width);
+    const rawY = Math.round(iy * image.naturalHeight / rect.height);
+
+    // send it back…
+    coordsDisplay.textContent = `Pixel: (${rawX}, ${rawY})`;
+    sendValue({ x: rawX, y: rawY });
+
+    // 2) (re)create the dot anchored on rawX, rawY
+    const wrapper = document.querySelector(".image-wrapper");
+    if (clickPoint) clickPoint.remove();
+
+    clickPoint = document.createElement("div");
+    clickPoint.className = "click-point";
+    clickPoint.dataset.rawX = rawX;
+    clickPoint.dataset.rawY = rawY;
+    wrapper.appendChild(clickPoint);
+
+    // 3) position it correctly now
+    updateClickPoint();
+  });
+
+  image.addEventListener("wheel", e => {
+    e.preventDefault()
+    lastMX = e.clientX; lastMY = e.clientY
+    if (e.deltaY < 0) zoomIn(e.clientX, e.clientY)
+    else zoomOut(e.clientX, e.clientY)
+    updateClickPoint();
+  })
+
+  zoomInBtn.addEventListener("click", () => zoomIn(lastMX, lastMY))
+  zoomOutBtn.addEventListener("click", () => zoomOut(lastMX, lastMY))
+  resetZoomBtn.addEventListener("click", resetZoom)
+
+  // --- initialize once image loads ---
+  image.onload = () => {
+    resetZoom()
+    Streamlit.setFrameHeight(600)
+  }
+
+  // handle Streamlit rerenders
+  Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender)
+  Streamlit.setComponentReady()
+
+  function onRender(event) {
+    const { src, width, height, use_column_width } = event.detail.args
+    if (image.src !== src) image.src = src
+    // Let your existing resize logic here…
+  }
+})
