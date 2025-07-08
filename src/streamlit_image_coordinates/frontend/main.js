@@ -5,6 +5,7 @@ function sendValue(value) {
 
 document.addEventListener("DOMContentLoaded", () => {
   const image = document.getElementById("image")
+  const wrapper = document.querySelector(".image-wrapper")
   const coordsDisplay = document.getElementById("coordinatesDisplay")
   const zoomInBtn = document.getElementById("zoomInBtn")
   const zoomOutBtn = document.getElementById("zoomOutBtn")
@@ -16,35 +17,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let isDragging = false
   let dragStartX = 0, dragStartY = 0
   let dragStartTX = 0, dragStartTY = 0
+  let prevScale = 1  // track previous scale to conditionally clamp
 
   // --- Utility to clamp pan so no white bars ever show ---
-  // function clampPan() {
-  //   const wrapper = document.querySelector(".image-wrapper").getBoundingClientRect()
-
-  //   // total overflow in each axis:
-  //   const overflowX = image.naturalWidth - wrapper.width  / currentScale
-  //   const overflowY = image.naturalHeight - wrapper.height / currentScale
-
-  //   // clamp to [–a/2, +a/2]:
-  //   const minX = -overflowX / 2, maxX = +overflowX / 2
-  //   const minY = -overflowY / 2, maxY = +overflowY / 2
-
-  //   translateX = Math.min(Math.max(translateX, minX), maxX)
-  //   translateY = Math.min(Math.max(translateY, minY), maxY)
-  // }
   function clampPan() {
-    const wrap = document.querySelector(".image-wrapper").getBoundingClientRect();
-    const scaledWidth = image.naturalWidth * currentScale;
-    const scaledHeight = image.naturalHeight * currentScale;
-    // only clamp when image exceeds wrapper bounds
-    if (scaledWidth > wrap.width) {
-        const minX = (wrap.width - scaledWidth) / currentScale;
-        translateX = Math.min(Math.max(translateX, minX), 0);
-    }
-    if (scaledHeight > wrap.height) {
-        const minY = (wrap.height - scaledHeight) / currentScale;
-        translateY = Math.min(Math.max(translateY, minY), 0);
-    }
+      // no-op to allow free panning in all directions
   }
 
   // function updateTransform() {
@@ -52,10 +29,11 @@ document.addEventListener("DOMContentLoaded", () => {
   //   image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`
   // }
   function updateTransform() {
-    // always clamp pan to prevent white space and center small images
-    clampPan();
+    // always clamp pan to keep image within wrapper bounds
+    clampPan()
     image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
-    updateClickPoint();
+    prevScale = currentScale
+    updateClickPoint()
   }
 
   // --- Zoom helpers ---
@@ -129,11 +107,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Mouse & wheel events ---
   let lastMX = 0, lastMY = 0
-  image.addEventListener("mousemove", e => {
+  wrapper.addEventListener("mousemove", e => {
     lastMX = e.clientX; lastMY = e.clientY
     if (isDragging) {
-      translateX = dragStartTX + (e.clientX - dragStartX)
-      translateY = dragStartTY + (e.clientY - dragStartY)
+      // account for scale: divide pointer movement by currentScale
+      translateX = dragStartTX + (e.clientX - dragStartX) / currentScale
+      translateY = dragStartTY + (e.clientY - dragStartY) / currentScale
       updateTransform()
       coordsDisplay.textContent = `Dragging… | ${currentScale.toFixed(2)}×`
       return
@@ -142,6 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const rect = image.getBoundingClientRect()
     const ix = e.clientX - rect.left
     const iy = e.clientY - rect.top
+
     const w = rect.width
     const h = rect.height
     const rawX = Math.round(ix * image.naturalWidth / w)
@@ -151,7 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   })
 
-  image.addEventListener("mousedown", e => {
+  wrapper.addEventListener("mousedown", e => {
     if (e.button === 2) {
       e.preventDefault()
       isDragging = true
@@ -161,9 +141,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     updateClickPoint();
   })
-  image.addEventListener("mouseup", () => { isDragging = false; image.classList.remove("dragging") })
-  image.addEventListener("mouseleave", () => { isDragging = false; image.classList.remove("dragging") })
-  image.addEventListener("contextmenu", e => e.preventDefault())
+  wrapper.addEventListener("mouseup", () => { isDragging = false; image.classList.remove("dragging") })
+  wrapper.addEventListener("mouseleave", () => { isDragging = false; image.classList.remove("dragging") })
+  wrapper.addEventListener("contextmenu", e => e.preventDefault())
 
   let clickPoint = null;
 
@@ -220,11 +200,19 @@ document.addEventListener("DOMContentLoaded", () => {
     updateClickPoint();
   });
 
-  image.addEventListener("wheel", e => {
-    e.preventDefault()
-    lastMX = e.clientX; lastMY = e.clientY
-    if (e.deltaY < 0) zoomIn(e.clientX, e.clientY)
-    else zoomOut(e.clientX, e.clientY)
+  wrapper.addEventListener("wheel", e => {
+    e.preventDefault();
+    lastMX = e.clientX; lastMY = e.clientY;
+    // pinch-zoom on Mac emits ctrlKey with wheel -> zoom; two-finger scroll without ctrl -> pan
+    if (e.ctrlKey) {
+        if (e.deltaY < 0) zoomIn(e.clientX, e.clientY);
+        else zoomOut(e.clientX, e.clientY);
+    } else {
+        // pan with wheel: invert deltas and adjust for current scale
+        translateX += -e.deltaX / currentScale;
+        translateY += -e.deltaY / currentScale;
+        updateTransform();
+    }
     updateClickPoint();
   })
 
@@ -248,3 +236,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Let your existing resize logic here…
   }
 })
+
+// disable clampPan
+function clampPan() { }
