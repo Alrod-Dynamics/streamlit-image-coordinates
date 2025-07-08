@@ -59,9 +59,17 @@ jobs:
           name: dist-wheels-${{ matrix.os }}
           path: dist
 
-      - name: List downloaded files
+      - name: List downloaded files (bash)
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           ls -la dist
+
+      - name: List downloaded files (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Force
 
       - name: Install wheel (bash)
         if: runner.os != 'Windows'
