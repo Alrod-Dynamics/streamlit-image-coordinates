@@ -2,6 +2,7 @@ name: Build Wheels and Release
 
 on:
   push:
+    branches: [main, master]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -59,7 +60,12 @@ jobs:
           name: dist-wheels-${{ matrix.os }}
           path: dist
 
+      - name: List downloaded files
+        run: |
+          ls -la dist/
+
       - name: Install wheel
+        shell: bash
         run: |
           pip install dist/*.whl
 
