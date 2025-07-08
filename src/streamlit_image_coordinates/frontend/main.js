@@ -33,27 +33,28 @@ document.addEventListener("DOMContentLoaded", () => {
   //   translateY = Math.min(Math.max(translateY, minY), maxY)
   // }
   function clampPan() {
-    const wrapper = document.querySelector(".image-wrapper").getBoundingClientRect()
-    const minX = wrapper.width / currentScale - image.naturalWidth
-    const minY = wrapper.height / currentScale - image.naturalHeight
-    console.log(`clampPan: minX=${minX}, minY=${minY}, currentScale=${currentScale}`)
-    translateX = Math.min(Math.max(translateX, minX), 0)
-    translateY = Math.min(Math.max(translateY, minY), 0)
+    const wrap = document.querySelector(".image-wrapper").getBoundingClientRect();
+    const scaledWidth = image.naturalWidth * currentScale;
+    const scaledHeight = image.naturalHeight * currentScale;
+    // only clamp when image exceeds wrapper bounds
+    if (scaledWidth > wrap.width) {
+        const minX = (wrap.width - scaledWidth) / currentScale;
+        translateX = Math.min(Math.max(translateX, minX), 0);
+    }
+    if (scaledHeight > wrap.height) {
+        const minY = (wrap.height - scaledHeight) / currentScale;
+        translateY = Math.min(Math.max(translateY, minY), 0);
+    }
   }
 
   // function updateTransform() {
   //   clampPan()
   //   image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`
   // }
-  let prevScale = 1;
-
   function updateTransform() {
-    // Only clamp when zooming out (or equal) or during a pan
-    if (currentScale <= prevScale) {
-      clampPan();
-    }
+    // always clamp pan to prevent white space and center small images
+    clampPan();
     image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
-    prevScale = currentScale;
     updateClickPoint();
   }
 
@@ -99,10 +100,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const localX = mouseX - wrap.left;
     const localY = mouseY - wrap.top;
 
+    // keep point under cursor fixed: use scale ratio
     const ratio = newScale / currentScale;
-    // keep the point under cursor fixed:
-    translateX = localX - ratio * (localX - translateX);
-    translateY = localY - ratio * (localY - translateY);
+    translateX = translateX * ratio + (1 - ratio) * localX;
+    translateY = translateY * ratio + (1 - ratio) * localY;
 
     currentScale = newScale;
     updateTransform();
@@ -114,14 +115,16 @@ document.addEventListener("DOMContentLoaded", () => {
     zoomAt(mx, my, target)
   }
   function zoomOut(mx, my) {
-    const target = currentScale / ZOOM_STEP
-    zoomAt(mx, my, Math.max(target, getMinScale()))
+    // allow unlimited zoom out (limited by practical scale)
+    const target = currentScale / ZOOM_STEP;
+    zoomAt(mx, my, target);
   }
   function resetZoom() {
-    currentScale = getMinScale()
-    translateX = 0
-    translateY = 0
-    updateTransform()
+    // reset to natural size
+    currentScale = 1;
+    translateX = 0;
+    translateY = 0;
+    updateTransform();
   }
 
   // --- Mouse & wheel events ---
