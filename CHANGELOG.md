@@ -1,3 +1,9 @@
+## v0.4.5 (2025-07-08)
+
+### Fix
+
+- add permissions for write access in GitHub Actions workflow
+
 ## v0.4.4 (2025-07-08)
 
 ### Fix
