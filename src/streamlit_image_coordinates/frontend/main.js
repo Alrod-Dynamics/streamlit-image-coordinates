@@ -107,6 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Mouse & wheel events ---
   let lastMX = 0, lastMY = 0
+  let panTimeout = null  // debounce for panning class
   wrapper.addEventListener("mousemove", e => {
     lastMX = e.clientX; lastMY = e.clientY
     if (isDragging) {
@@ -203,15 +204,17 @@ document.addEventListener("DOMContentLoaded", () => {
   wrapper.addEventListener("wheel", e => {
     e.preventDefault();
     lastMX = e.clientX; lastMY = e.clientY;
-    // pinch-zoom on Mac emits ctrlKey with wheel -> zoom; two-finger scroll without ctrl -> pan
     if (e.ctrlKey) {
         if (e.deltaY < 0) zoomIn(e.clientX, e.clientY);
         else zoomOut(e.clientX, e.clientY);
     } else {
-        // pan with wheel: invert deltas and adjust for current scale
-        translateX += -e.deltaX / currentScale;
-        translateY += -e.deltaY / currentScale;
+        // pan with wheel: instant pixel-to-pixel mapping for trackpad
+        clearTimeout(panTimeout);
+        image.classList.add('dragging');
+        translateX += -e.deltaX;
+        translateY += -e.deltaY;
         updateTransform();
+        panTimeout = setTimeout(() => { image.classList.remove('dragging') }, 50);
     }
     updateClickPoint();
   })
