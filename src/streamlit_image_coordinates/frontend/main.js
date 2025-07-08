@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let dragStartX = 0, dragStartY = 0
   let dragStartTX = 0, dragStartTY = 0
   let prevScale = 1  // track previous scale to conditionally clamp
+  let zooming = false;
+  let followRAF = null;
 
   // --- Utility to clamp pan so no white bars ever show ---
   function clampPan() {
@@ -73,18 +75,34 @@ document.addEventListener("DOMContentLoaded", () => {
   //   updateTransform()
   // }
 
+  function follow() {
+    updateClickPoint();
+    if (zooming) followRAF = requestAnimationFrame(follow);
+  }
+
+  image.addEventListener('transitionend', e => {
+    if (e.propertyName === 'transform') {
+      zooming = false;
+      if (followRAF) cancelAnimationFrame(followRAF);
+    }
+  });
+
   function zoomAt(mouseX, mouseY, newScale) {
-    const wrap = document.querySelector(".image-wrapper").getBoundingClientRect();
-    const localX = mouseX - wrap.left;
-    const localY = mouseY - wrap.top;
+    // sync dot during smooth zoom
+    zooming = true;
+     const wrap = document.querySelector(".image-wrapper").getBoundingClientRect();
+     const localX = mouseX - wrap.left;
+     const localY = mouseY - wrap.top;
 
-    // keep point under cursor fixed: use scale ratio
-    const ratio = newScale / currentScale;
-    translateX = translateX * ratio + (1 - ratio) * localX;
-    translateY = translateY * ratio + (1 - ratio) * localY;
+     // keep point under cursor fixed: use scale ratio
+     const ratio = newScale / currentScale;
+     translateX = translateX * ratio + (1 - ratio) * localX;
+     translateY = translateY * ratio + (1 - ratio) * localY;
 
-    currentScale = newScale;
+     currentScale = newScale;
     updateTransform();
+    // start updating dot through transition
+    followRAF = requestAnimationFrame(follow);
   }
 
   function zoomIn(mx, my) {
