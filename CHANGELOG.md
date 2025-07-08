@@ -1,3 +1,12 @@
+## v0.4.6 (2025-07-09)
+
+### Fix
+
+- enhance red dot behavior while zooming
+- improve dragging behavior
+- enhance image panning and zooming functionality in main.js and style.css
+- improve image panning and zooming behavior in main.js
+
 ## v0.4.5 (2025-07-08)
 
 ### Fix
