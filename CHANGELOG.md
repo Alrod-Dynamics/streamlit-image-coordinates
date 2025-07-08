@@ -1,3 +1,9 @@
+## v0.4.3 (2025-07-08)
+
+### Fix
+
+- enhance file listing step in GitHub Actions for cross-platform compatibility
+
 ## v0.4.2 (2025-07-08)
 
 ### Fix
