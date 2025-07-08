@@ -2,7 +2,6 @@ name: Build Wheels and Release
 
 on:
   push:
-    branches: [main, master]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -62,16 +61,26 @@ jobs:
 
       - name: List downloaded files
         run: |
-          ls -la dist/
+          ls -la dist
 
-      - name: Install wheel
+      - name: Install wheel (bash)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           pip install dist/*.whl
 
+      - name: Install wheel (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pip install "dist\\*.whl"
+
       - name: Test import
         run: |
           python -c "import streamlit_image_coordinates; print('Package imported successfully')"
+          echo "=== Checking installed packages ==="
+          pip list | grep -i streamlit || echo "No streamlit packages found"
+        continue-on-error: false
 
   release:
     name: Create GitHub Release
