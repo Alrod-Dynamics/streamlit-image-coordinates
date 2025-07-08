@@ -1,3 +1,9 @@
+## v0.4.4 (2025-07-08)
+
+### Fix
+
+- improve wheel installation step for Windows in GitHub Actions
+
 ## v0.4.3 (2025-07-08)
 
 ### Fix
