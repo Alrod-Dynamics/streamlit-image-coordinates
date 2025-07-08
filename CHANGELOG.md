@@ -1,3 +1,9 @@
+## v0.4.2 (2025-07-08)
+
+### Fix
+
+- update GitHub Actions workflow to specify branches for push events and improve wheel installation steps
+
 ## v0.4.1 (2025-07-08)
 
 ### Fix
