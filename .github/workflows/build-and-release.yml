@@ -81,7 +81,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          pip install "dist\\*.whl"
+          Get-ChildItem dist -Filter *.whl | ForEach-Object { pip install $_.FullName }
 
       - name: Test import
         run: |
