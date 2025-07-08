@@ -1,3 +1,9 @@
+## v0.4.1 (2025-07-08)
+
+### Fix
+
+- ensure branches are specified for push events and add file listing step before installation
+
 ## v0.4.0 (2025-07-08)
 
 ### Feat
